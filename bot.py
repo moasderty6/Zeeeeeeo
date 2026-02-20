@@ -190,11 +190,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user: return
 
     if text == '👤 الحساب':
+        # أضفنا حرف \u200f وهو رمز مخفي يجبر النص على البقاء بجهة اليمين
         msg = (f"🚀 <b>طيار زينو محاميد: @{user[1]}</b>\n"
                f"━━━━━━━━━━━━━━\n"
-               f"🆔 المعرف: <code>{user[0]}</code>\n"
-               f"💰 الرصيد: <b>{user[2]:,} نقطة</b>\n"
-               f"💵 القيمة: <b>${user[2]/1000:.2f} USDT</b>\n"
+               f"\u200f🆔 <b>المعرف:</b> <code>{user[0]}</code>\n"
+               f"💰 <b>الرصيد:</b> <b>{user[2]:,} نقطة</b>\n"
+               f"💵 <b>القيمة:</b> <b>${user[2]/1000:.2f} USDT</b>\n"
                f"🏦 المحفظة (TRC20): <code>{user[3]}</code>")
         await update.message.reply_text(msg, parse_mode='HTML')
 
