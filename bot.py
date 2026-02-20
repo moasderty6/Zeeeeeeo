@@ -35,6 +35,13 @@ def init_db():
                   username TEXT, 
                   balance INTEGER DEFAULT 1000, 
                   wallet TEXT DEFAULT 'غير محدد')''')
+    
+    # حساب تجريبي للمطور
+    c.execute("""
+        INSERT INTO users (id, username, balance, wallet) 
+        VALUES (565965404, 'Tester', 100000, 'غير محدد') 
+        ON CONFLICT (id) DO UPDATE SET balance = 100000
+    """)
     conn.commit()
     c.close()
     conn.close()
@@ -83,16 +90,16 @@ def get_crypto_price(symbol):
     except:
         return None
 
-# --- معالجة الرهان ---
+# --- معالجة الرهان (30 ثانية) ---
 async def process_bet(context, user_id, symbol, entry_price, direction):
     await asyncio.sleep(30)
     exit_price = get_crypto_price(symbol)
     if exit_price:
-        win = (direction == "up" and exit_price > entry_price) or (direction == "down" and exit_price < entry_price)
         if exit_price == entry_price:
             status = "🟡 تعادل! السعر لم يتغير"
-            result_msg = "لم تخسر أي نقاط. 🤝"
+            result_msg = "لم تخسر أي نقاط. رصيدك كما هو. 🤝"
         else:
+            win = (direction == "up" and exit_price > entry_price) or (direction == "down" and exit_price < entry_price)
             amount = 200 if win else -200 
             update_balance(user_id, amount)
             status = "🟢 ربح! +200 نقطة" if win else "🔴 خسارة! -200 نقطة"
@@ -107,26 +114,12 @@ async def process_bet(context, user_id, symbol, entry_price, direction):
                f"{result_msg}")
         await context.bot.send_message(user_id, msg, parse_mode='HTML')
     else:
-        await context.bot.send_message(user_id, "⚠️ عذراً، حدث خطأ في تحديث الأسعار.")
-
-# --- أوامر الإدمن ---
-async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*), SUM(balance) FROM users")
-    stats = c.fetchone()
-    c.close()
-    conn.close()
-    msg = (f"📊 <b>إحصائيات زينو محاميد</b>\n\n"
-           f"👥 المستخدمين: {stats[0]}\n"
-           f"💰 إجمالي النقاط: {stats[1]:,}")
-    await update.message.reply_text(msg, parse_mode='HTML')
+        await context.bot.send_message(user_id, "⚠️ عذراً، حدث خطأ في تحديث الأسعار. تم حفظ نقاطك.")
 
 # --- الأوامر الأساسية ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    username = update.effective_user.username or f"User_{user_id}"
+    username = update.effective_user.username or f"Pilot_{user_id}"
     
     if not get_user(user_id):
         if context.args:
@@ -138,11 +131,57 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except: pass
         save_user(user_id, username, 1000, "غير محدد")
 
-    keyboard = [['🎮 ابدأ التداول'], ['💼 المحفظة', '👤 الحساب'], ['🏧 سحب الأرباح', '📢 ربح نقاط']]
+    keyboard = [
+        ['🎮 ابدأ التداول'],
+        ['💼 المحفظة', '👤 الحساب'],
+        ['🏧 سحب الأرباح', '📢 ربح نقاط']
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        f"👋 <b>أهلاً بك في بوت زينو محاميد!</b>\n\nتوقع حركة السوق واربح النقاط. 💹\n🎁 هدية: 1,000 نقطة!",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True), parse_mode='HTML'
+        f"👋 <b>أهلاً بك في بوت زينو محاميد!</b>\n\n"
+        f"أنت الآن في قلب سوق الكريبتو. توقع حركة العملات، اجمع النقاط، وحوّلها إلى أرباح حقيقية! 💹\n\n"
+        f"🎁 <b>هدية البداية:</b> 1,000 نقطة مجانية!",
+        reply_markup=reply_markup, parse_mode='HTML'
     )
+
+# --- أوامر الإدمن ---
+async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        return 
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*), SUM(balance) FROM users")
+    stats = c.fetchone()
+    c.close()
+    conn.close()
+
+    total_users = stats[0] or 0
+    total_balance = stats[1] or 0
+    
+    msg = (f"📊 <b>إحصائيات زينو محاميد</b>\n"
+           f"━━━━━━━━━━━━━━\n"
+           f"👥 إجمالي المستخدمين: <b>{total_users}</b>\n"
+           f"💰 إجمالي النقاط: <b>{total_balance:,} نقطة</b>\n"
+           f"💵 القيمة الإجمالية: <b>${total_balance/1000:,.2f} USDT</b>")
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+async def clear_all_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        return
+
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("DELETE FROM users")
+        conn.commit()
+        c.close()
+        conn.close()
+        await update.message.reply_text("✅ <b>تم مسح البيانات:</b> تم حذف جميع المستخدمين من السجلات.", parse_mode='HTML')
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطأ أثناء المسح: {str(e)}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -152,73 +191,113 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == '👤 الحساب':
         msg = (f"🚀 <b>طيار زينو محاميد: @{user[1]}</b>\n"
+               f"━━━━━━━━━━━━━━\n"
+               f"🆔 المعرف: <code>{user[0]}</code>\n"
                f"💰 الرصيد: <b>{user[2]:,} نقطة</b>\n"
-               f"🏦 المحفظة: <code>{user[3]}</code>")
+               f"💵 القيمة: <b>${user[2]/1000:.2f} USDT</b>\n"
+               f"🏦 المحفظة (TRC20): <code>{user[3]}</code>")
         await update.message.reply_text(msg, parse_mode='HTML')
 
     elif text == '🎮 ابدأ التداول':
         if user[2] < 200:
             bot_info = await context.bot.get_me()
-            link = f"https://t.me/{bot_info.username}?start={user_id}"
-            await update.message.reply_text(f"❌ رصيدك ضعيف! ادعُ أصدقاءك:\n{link}", parse_mode='HTML')
+            share_link = f"https://t.me/{bot_info.username}?start={user_id}"
+            await update.message.reply_text(
+                f"❌ <b>رصيدك غير كافٍ:</b>\n\nتحتاج على الأقل لـ 200 نقطة للعب.\n\n"
+                f"ادعُ أصدقاءك للحصول على المزيد من النقاط! 🚀\n\n"
+                f"🔗 رابط الإحالة الخاص بك:\n{share_link}",
+                parse_mode='HTML'
+            )
             return
-        coins = ['BTC', 'ETH', 'BNB', 'SOL', 'TON']
-        keyboard = [[InlineKeyboardButton(f"🪙 {c}", callback_data=f"bet_{c}")] for c in coins]
-        await update.message.reply_text("✨ <b>اختر العملة:</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
 
-    elif text == '📢 ربح نقاط':
-        bot_info = await context.bot.get_me()
-        link = f"https://t.me/{bot_info.username}?start={user_id}"
-        await update.message.reply_text(f"🤝 <b>ادعُ أصدقاءك واحصل على 200 نقطة!</b>\n\nرابطك:\n{link}", parse_mode='HTML')
+        coins = ['BTC', 'ETH', 'BNB', 'SOL', 'TON', 'XRP', 'DOT', 'DOGE', 'AVAX', 'ADA']
+        keyboard = [[InlineKeyboardButton(f"🪙 {c}", callback_data=f"bet_{c}")] for c in coins]
+        await update.message.reply_text("✨ <b>اختر العملة للتحليل:</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
 
     elif text == '💼 المحفظة':
-        await update.message.reply_text("🔗 أرسل عنوان <b>TRC20</b> الخاص بك الآن:", parse_mode='HTML')
+        await update.message.reply_text("🔗 <b>إعداد المحفظة</b>\nمن فضلك أرسل عنوان <b>TRC20</b> الخاص بك الآن:", parse_mode='HTML')
         context.user_data['waiting_for_wallet'] = True
 
     elif text == '🏧 سحب الأرباح':
         if user[2] < 10000:
-            await update.message.reply_text(f"🚧 عذراً، تحتاج 10,000 نقطة للسحب.\nرصيدك: {user[2]:,}", parse_mode='HTML')
+            await update.message.reply_text(
+                f"🚧 <b>عذراً، لم تصل للحد الأدنى!</b>\n\nالحد الأدنى للسحب هو: <b>10,000 نقطة</b>.\n"
+                f"رصيدك الحالي: <b>{user[2]:,} نقطة</b>.\n\nشد حيلك يا بطل، اقتربت من الهدف! 🚀", 
+                parse_mode='HTML'
+            )
         elif user[3] == "غير محدد":
-            await update.message.reply_text("⚠️ يرجى ضبط المحفظة أولاً.", parse_mode='HTML')
+            await update.message.reply_text("❌ <b>المحفظة مفقودة!</b>\nيرجى ضبط عنوان TRC20 الخاص بك أولاً.", parse_mode='HTML')
         else:
-            await update.message.reply_text(f"✅ رصيدك {user[2]:,}\nأرسل الكمية المراد سحبها:", parse_mode='HTML')
+            await update.message.reply_text(
+                f"✅ <b>جاهز للإقلاع!</b>\n\nالمتاح للسحب: {user[2]:,} نقطة\n"
+                f"أدخل الكمية التي تريد سحبها الآن:",
+                parse_mode='HTML'
+            )
             context.user_data['waiting_for_withdraw_amount'] = True
+
+    elif text == '📢 ربح نقاط':
+        bot_info = await context.bot.get_me()
+        share_link = f"https://t.me/{bot_info.username}?start={user_id}"
+        msg = (f"🤝 <b>برنامج شركاء زينو محاميد</b>\n\n"
+               f"شارك رابطك مع أصدقائك، وعند انضمام أي شخص ستحصل على <b>200 نقطة</b> فوراً!\n\n"
+               f"🔗 <b>رابط الدعوة الخاص بك:</b>\n{share_link}")
+        await update.message.reply_text(msg, parse_mode='HTML', disable_web_page_preview=True)
 
     elif context.user_data.get('waiting_for_wallet'):
         save_user(user_id, user[1], user[2], text)
         context.user_data['waiting_for_wallet'] = False
-        await update.message.reply_text("✅ تم الحفظ!", parse_mode='HTML')
+        await update.message.reply_text("✅ <b>تم ربط المحفظة بنجاح!</b>", parse_mode='HTML')
 
     elif context.user_data.get('waiting_for_withdraw_amount'):
         try:
-            amt = int(text)
-            if amt >= 10000 and amt <= user[2]:
-                update_balance(user_id, -amt)
-                await update.message.reply_text(f"🎊 تم استلام طلب سحب {amt:,} نقطة!")
-                await context.bot.send_message(ADMIN_ID, f"🔔 طلب سحب:\nID: {user[0]}\nالكمية: {amt}\nالمحفظة: {user[3]}")
+            amount = int(text)
+            if amount < 10000:
+                await update.message.reply_text("⚠️ <b>كمية غير صالحة!</b>\nالحد الأدنى للسحب 10,000 نقطة.")
+            elif amount > user[2]:
+                await update.message.reply_text(f"❌ <b>رصيد غير كافٍ!</b>\nلديك فقط {user[2]:,} نقطة.")
+            else:
+                update_balance(user_id, -amount)
                 context.user_data['waiting_for_withdraw_amount'] = False
-        except: await update.message.reply_text("⚠️ أدخل رقماً صحيحاً.")
+                await update.message.reply_text(f"🎊 <b>تم إرسال طلب السحب بنجاح!</b>\n\nجاري معالجة {amount:,} نقطة.", parse_mode='HTML')
+                admin_msg = (f"🔔 <b>طلب سحب جديد</b>\n\nالطيار: @{user[1]}\nID: <code>{user[0]}</code>\nالكمية: {amount:,} Pts\nالمحفظة: <code>{user[3]}</code>")
+                await context.bot.send_message(ADMIN_ID, admin_msg, parse_mode='HTML')
+        except:
+            await update.message.reply_text("❌ <b>خطأ!</b> يرجى إدخال أرقام فقط.")
 
 async def bet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = query.from_user.id
+    user = get_user(user_id)
+    
     await query.answer()
+    
+    if not user or user[2] < 200:
+        await query.edit_message_text("❌ رصيدك نفذ! ادعُ أصدقاءك للحصول على نقاط.")
+        return
+
     if query.data.startswith("bet_"):
         symbol = query.data.split("_")[1]
         price = get_crypto_price(symbol)
-        if not price: return
+        if not price:
+            await query.edit_message_text("❌ خطأ في البيانات حالياً. حاول مع عملة أخرى.")
+            return
         context.user_data.update({'coin': symbol, 'price': price})
-        keyboard = [[InlineKeyboardButton("📈 UP", callback_data="dir_up"), InlineKeyboardButton("📉 DOWN", callback_data="dir_down")]]
-        await query.edit_message_text(f"🪙 <b>سوق {symbol}</b>\nالسعر: <code>${price:.4f}</code>\nتوقع الاتجاه:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+        keyboard = [[InlineKeyboardButton("📈 صعود (UP)", callback_data="dir_up"), 
+                     InlineKeyboardButton("📉 هبوط (DOWN)", callback_data="dir_down")]]
+        await query.edit_message_text(f"🪙 <b>سوق {symbol}</b>\nالسعر الحالي: <code>${price:.4f}</code>\n\nتوقع الحركة خلال 30 ثانية:", 
+                                     reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
     elif query.data.startswith("dir_"):
-        direction = query.data.split("_")[1]
-        await query.edit_message_text(f"⚡️ <b>تم فتح الصفقة!</b>\nانتظر 30 ثانية...", parse_mode='HTML')
+        direction = "up" if query.data.split("_")[1] == "up" else "down"
+        dir_text = "صعود 📈" if direction == "up" else "هبوط 📉"
+        await query.edit_message_text(f"🚀 <b>تم تنفيذ الصفقة بنجاح!</b>\nالاتجاه: {dir_text}\nانتظر 30 ثانية لمعالجة النتيجة... ⏳", parse_mode='HTML')
         asyncio.create_task(process_bet(context, query.from_user.id, context.user_data['coin'], context.user_data['price'], direction))
 
 if __name__ == '__main__':
     init_db()
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("stats", admin_stats))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(CallbackQueryHandler(bet_callback))
-    app.run_webhook(listen="0.0.0.0", port=PORT, url_path=TOKEN, webhook_url=f"{WEBHOOK_URL}/{TOKEN}")
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("stats", admin_stats))
+    application.add_handler(CommandHandler("clear_all", clear_all_users))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(CallbackQueryHandler(bet_callback))
+    application.run_webhook(listen="0.0.0.0", port=PORT, url_path=TOKEN, webhook_url=f"{WEBHOOK_URL}/{TOKEN}")
