@@ -1,3 +1,6 @@
-aiogram>=3.4
-aiohttp>=3.9
-asyncpg>=0.29
+python-telegram-bot[webhooks]==20.8
+flask
+requests
+python-dotenv
+gunicorn
+psycopg2-binary
