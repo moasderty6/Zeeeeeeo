@@ -34,11 +34,12 @@ def init_db():
                  (id BIGINT PRIMARY KEY, 
                   username TEXT, 
                   balance INTEGER DEFAULT 1000, 
-                  wallet TEXT DEFAULT 'Not Set')''')
+                  wallet TEXT DEFAULT 'غير محدد')''')
     
+    # حساب تجريبي للمطور
     c.execute("""
         INSERT INTO users (id, username, balance, wallet) 
-        VALUES (565965404, 'Tester', 100000, 'Not Set') 
+        VALUES (565965404, 'Tester', 100000, 'غير محدد') 
         ON CONFLICT (id) DO UPDATE SET balance = 100000
     """)
     conn.commit()
@@ -89,31 +90,31 @@ def get_crypto_price(symbol):
     except:
         return None
 
-# --- معالجة الرهان (30 ثانية) مع منطق التعادل ---
+# --- معالجة الرهان (30 ثانية) ---
 async def process_bet(context, user_id, symbol, entry_price, direction):
     await asyncio.sleep(30)
     exit_price = get_crypto_price(symbol)
     if exit_price:
         if exit_price == entry_price:
-            status = "🟡 DRAW! Price Unchanged"
-            result_msg = "No points lost. Your balance remains the same. 🤝"
+            status = "🟡 تعادل! السعر لم يتغير"
+            result_msg = "لم تخسر أي نقاط. رصيدك كما هو. 🤝"
         else:
             win = (direction == "up" and exit_price > entry_price) or (direction == "down" and exit_price < entry_price)
             amount = 200 if win else -200 
             update_balance(user_id, amount)
-            status = "🟢 WINNER! +200 Pts" if win else "🔴 LOSS! -200 Pts"
-            result_msg = "Market prediction completed."
+            status = "🟢 ربح! +200 نقطة" if win else "🔴 خسارة! -200 نقطة"
+            result_msg = "تم اكتمال تحليل السوق."
         
-        msg = (f"🏆 <b>{symbol} Trade Result</b>\n"
+        msg = (f"🏆 <b>نتيجة تداول {symbol}</b>\n"
                f"━━━━━━━━━━━━━━\n"
-               f"📉 Entry: <code>${entry_price:.4f}</code>\n"
-               f"📈 Exit: <code>${exit_price:.4f}</code>\n"
+               f"📉 دخول: <code>${entry_price:.4f}</code>\n"
+               f"📈 خروج: <code>${exit_price:.4f}</code>\n"
                f"━━━━━━━━━━━━━━\n"
                f"<b>{status}</b>\n"
                f"{result_msg}")
         await context.bot.send_message(user_id, msg, parse_mode='HTML')
     else:
-        await context.bot.send_message(user_id, "⚠️ Network Error. Points returned.")
+        await context.bot.send_message(user_id, "⚠️ خطأ في الشبكة. تم إعادة النقاط لرصيدك.")
 
 # --- الأوامر الأساسية ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -126,22 +127,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ref_id = int(context.args[0])
                 if get_user(ref_id):
                     update_balance(ref_id, 200)
-                    await context.bot.send_message(ref_id, "🚀 <b>New Pilot Joined!</b> You earned 200 Pts.", parse_mode='HTML')
+                    await context.bot.send_message(ref_id, "🚀 <b>طيار جديد انضم!</b> لقد حصلت على 200 نقطة.", parse_mode='HTML')
             except: pass
-        save_user(user_id, username, 1000, "Not Set")
+        save_user(user_id, username, 1000, "غير محدد")
 
     keyboard = [
-        ['🎮 Bet Now'],
-        ['💼 Wallet', '👤 Account'],
-        ['🏧 Withdraw', '📢 Earn Points']
+        ['🎮 ابدأ التداول'],
+        ['💼 المحفظة', '👤 الحساب'],
+        ['🏧 سحب الأرباح', '📢 ربح نقاط']
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        f"🌕 <b>Welcome to Binance Moonbix!</b>\n\nExplore the galaxy of crypto and earn points by predicting the market moves. 🚀",
+        f"🌕 <b>أهلاً بك في Binance Moonbix بالعربي!</b>\n\nاستكشف مجرة العملات الرقمية واربح النقاط عبر توقع حركة السوق. 🚀",
         reply_markup=reply_markup, parse_mode='HTML'
     )
 
-# --- أمر الأدمن لرؤية الإحصائيات ---
+# --- أوامر الإدمن ---
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
@@ -157,14 +158,13 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_users = stats[0] or 0
     total_balance = stats[1] or 0
     
-    msg = (f"📊 <b>Binance Moonbix Stats</b>\n"
+    msg = (f"📊 <b>إحصائيات Binance Moonbix</b>\n"
            f"━━━━━━━━━━━━━━\n"
-           f"👥 Total Users: <b>{total_users}</b>\n"
-           f"💰 Total Points: <b>{total_balance:,} Pts</b>\n"
-           f"💵 Total Value: <b>${total_balance/1000:,.2f} USDT</b>")
+           f"👥 إجمالي المستخدمين: <b>{total_users}</b>\n"
+           f"💰 إجمالي النقاط: <b>{total_balance:,} نقطة</b>\n"
+           f"💵 القيمة الإجمالية: <b>${total_balance/1000:,.2f} USDT</b>")
     await update.message.reply_text(msg, parse_mode='HTML')
 
-# --- أمر الأدمن لمسح جميع المستخدمين ---
 async def clear_all_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
@@ -177,9 +177,9 @@ async def clear_all_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         c.close()
         conn.close()
-        await update.message.reply_text("✅ <b>Database Cleared:</b> All users have been removed from the records.", parse_mode='HTML')
+        await update.message.reply_text("✅ <b>تم مسح البيانات:</b> تم حذف جميع المستخدمين من السجلات.", parse_mode='HTML')
     except Exception as e:
-        await update.message.reply_text(f"❌ Error clearing database: {str(e)}")
+        await update.message.reply_text(f"❌ خطأ أثناء المسح: {str(e)}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -187,80 +187,80 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_user(user_id)
     if not user: return
 
-    if text == '👤 Account':
-        msg = (f"🚀 <b>Moonbix Pilot: @{user[1]}</b>\n"
+    if text == '👤 الحساب':
+        msg = (f"🚀 <b>طيار Moonbix: @{user[1]}</b>\n"
                f"━━━━━━━━━━━━━━\n"
-               f"🆔 ID: <code>{user[0]}</code>\n"
-               f"💰 Balance: <b>{user[2]:,} Pts</b>\n"
-               f"💵 Value: <b>${user[2]/1000:.2f} USDT</b>\n"
-               f"🏦 Wallet(TRC20): <code>{user[3]}</code>")
+               f"🆔 المعرف: <code>{user[0]}</code>\n"
+               f"💰 الرصيد: <b>{user[2]:,} نقطة</b>\n"
+               f"💵 القيمة: <b>${user[2]/1000:.2f} USDT</b>\n"
+               f"🏦 المحفظة (TRC20): <code>{user[3]}</code>")
         await update.message.reply_text(msg, parse_mode='HTML')
 
-    elif text == '🎮 Bet Now':
+    elif text == '🎮 ابدأ التداول':
         if user[2] < 200:
             bot_info = await context.bot.get_me()
             share_link = f"https://t.me/{bot_info.username}?start={user_id}"
             await update.message.reply_text(
-                f"❌ <b>Insufficient Balance:</b>\n\nYour balance is insufficient to play (Minimum 200 Pts required).\n\n"
-                f"Invite your friends to earn more points and continue the journey! 🚀\n\n"
-                f"🔗 Your Referral Link:\n{share_link}",
+                f"❌ <b>رصيدك غير كافٍ:</b>\n\nتحتاج على الأقل لـ 200 نقطة للعب.\n\n"
+                f"ادعُ أصدقاءك للحصول على المزيد من النقاط! 🚀\n\n"
+                f"🔗 رابط الإحالة الخاص بك:\n{share_link}",
                 parse_mode='HTML'
             )
             return
 
         coins = ['BTC', 'ETH', 'BNB', 'SOL', 'TON', 'XRP', 'DOT', 'DOGE', 'AVAX', 'ADA']
         keyboard = [[InlineKeyboardButton(f"🪙 {c}", callback_data=f"bet_{c}")] for c in coins]
-        await update.message.reply_text("✨ <b>Choose your Asset:</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+        await update.message.reply_text("✨ <b>اختر العملة للتحليل:</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
 
-    elif text == '💼 Wallet':
-        await update.message.reply_text("🔗 <b>Wallet Setup</b>\nPlease send your <b>TRC20</b> address:", parse_mode='HTML')
+    elif text == '💼 المحفظة':
+        await update.message.reply_text("🔗 <b>إعداد المحفظة</b>\nمن فضلك أرسل عنوان <b>TRC20</b> الخاص بك:", parse_mode='HTML')
         context.user_data['waiting_for_wallet'] = True
 
-    elif text == '🏧 Withdraw':
+    elif text == '🏧 سحب الأرباح':
         if user[2] < 10000:
             await update.message.reply_text(
-                f"⚠️ <b>Access Denied!</b>\n\nMinimum fuel required: <b>10,000 Pts</b>.\n"
-                f"Your balance: <b>{user[2]:,} Pts</b>.\n\nKeep trading to reach the moon! 🚀", 
+                f"⚠️ <b>الوصول مرفوض!</b>\n\nالحد الأدنى للسحب: <b>10,000 نقطة</b>.\n"
+                f"رصيدك الحالي: <b>{user[2]:,} نقطة</b>.\n\nواصل التداول للوصول للقمر! 🚀", 
                 parse_mode='HTML'
             )
-        elif user[3] == "Not Set":
-            await update.message.reply_text("❌ <b>Wallet Missing!</b>\nPlease set your TRC20 address first.", parse_mode='HTML')
+        elif user[3] == "غير محدد":
+            await update.message.reply_text("❌ <b>المحفظة مفقودة!</b>\nيرجى ضبط عنوان TRC20 الخاص بك أولاً.", parse_mode='HTML')
         else:
             await update.message.reply_text(
-                f"✅ <b>Ready for Takeoff!</b>\n\nAvailable: {user[2]:,} Pts\n"
-                f"Enter the amount you want to withdraw:",
+                f"✅ <b>جاهز للإقلاع!</b>\n\nالمتاح للسحب: {user[2]:,} نقطة\n"
+                f"أدخل الكمية التي تريد سحبها:",
                 parse_mode='HTML'
             )
             context.user_data['waiting_for_withdraw_amount'] = True
 
-    elif text == '📢 Earn Points':
+    elif text == '📢 ربح نقاط':
         bot_info = await context.bot.get_me()
         share_link = f"https://t.me/{bot_info.username}?start={user_id}"
-        msg = (f"🎁 <b>Moonbix Referral Program</b>\n\n"
-               f"Invite friends and get <b>200 Points</b> instantly!\n\n"
-               f"🔗 <b>Your Invite Link:</b>\n{share_link}")
+        msg = (f"🎁 <b>برنامج إحالة Moonbix</b>\n\n"
+               f"ادعُ أصدقاءك واحصل على <b>200 نقطة</b> فوراً لكل صديق!\n\n"
+               f"🔗 <b>رابط الدعوة الخاص بك:</b>\n{share_link}")
         await update.message.reply_text(msg, parse_mode='HTML', disable_web_page_preview=True)
 
     elif context.user_data.get('waiting_for_wallet'):
         save_user(user_id, user[1], user[2], text)
         context.user_data['waiting_for_wallet'] = False
-        await update.message.reply_text("✅ <b>Wallet Connected!</b>", parse_mode='HTML')
+        await update.message.reply_text("✅ <b>تم ربط المحفظة بنجاح!</b>", parse_mode='HTML')
 
     elif context.user_data.get('waiting_for_withdraw_amount'):
         try:
             amount = int(text)
             if amount < 10000:
-                await update.message.reply_text("⚠️ <b>Invalid Amount!</b>\nMin withdrawal is 10,000 Pts.")
+                await update.message.reply_text("⚠️ <b>كمية غير صالحة!</b>\nالحد الأدنى للسحب 10,000 نقطة.")
             elif amount > user[2]:
-                await update.message.reply_text(f"❌ <b>Insufficient Balance!</b>\nYou only have {user[2]:,} Pts.")
+                await update.message.reply_text(f"❌ <b>رصيد غير كافٍ!</b>\nلديك فقط {user[2]:,} نقطة.")
             else:
                 update_balance(user_id, -amount)
                 context.user_data['waiting_for_withdraw_amount'] = False
-                await update.message.reply_text(f"🎊 <b>Withdrawal Request Sent!</b>\n\n{amount:,} Pts being processed.", parse_mode='HTML')
-                admin_msg = (f"🔔 <b>NEW WITHDRAWAL</b>\n\nPilot: @{user[1]}\nID: <code>{user[0]}</code>\nAmount: {amount:,} Pts\nWallet: <code>{user[3]}</code>")
+                await update.message.reply_text(f"🎊 <b>تم إرسال طلب السحب!</b>\n\nجاري معالجة {amount:,} نقطة.", parse_mode='HTML')
+                admin_msg = (f"🔔 <b>طلب سحب جديد</b>\n\nالطيار: @{user[1]}\nID: <code>{user[0]}</code>\nالكمية: {amount:,} Pts\nالمحفظة: <code>{user[3]}</code>")
                 await context.bot.send_message(ADMIN_ID, admin_msg, parse_mode='HTML')
         except:
-            await update.message.reply_text("❌ <b>Error!</b> Enter numbers only.")
+            await update.message.reply_text("❌ <b>خطأ!</b> يرجى إدخال أرقام فقط.")
 
 async def bet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -277,17 +277,17 @@ async def bet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         symbol = query.data.split("_")[1]
         price = get_crypto_price(symbol)
         if not price:
-            await query.edit_message_text("❌ Data error. Try another coin.")
+            await query.edit_message_text("❌ خطأ في البيانات. حاول عملة أخرى.")
             return
         context.user_data.update({'coin': symbol, 'price': price})
-        keyboard = [[InlineKeyboardButton("📈 BULLISH (UP)", callback_data="dir_up"), 
-                     InlineKeyboardButton("📉 BEARISH (DOWN)", callback_data="dir_down")]]
-        await query.edit_message_text(f"🪙 <b>{symbol} Market</b>\nPrice: <code>${price:.4f}</code>\n\nPredict 30s move:", 
+        keyboard = [[InlineKeyboardButton("📈 صعود (UP)", callback_data="dir_up"), 
+                     InlineKeyboardButton("📉 هبوط (DOWN)", callback_data="dir_down")]]
+        await query.edit_message_text(f"🪙 <b>سوق {symbol}</b>\nالسعر الحالي: <code>${price:.4f}</code>\n\nتوقع الحركة خلال 30 ثانية:", 
                                      reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
     elif query.data.startswith("dir_"):
         direction = "up" if query.data.split("_")[1] == "up" else "down"
-        dir_text = "BULLISH (UP)" if direction == "up" else "BEARISH (DOWN)"
-        await query.edit_message_text(f"🚀 <b>Trade Executed!</b>\nPosition: {dir_text}\nWaiting (30s)... ⏳", parse_mode='HTML')
+        dir_text = "صعود 📈" if direction == "up" else "هبوط 📉"
+        await query.edit_message_text(f"🚀 <b>تم تنفيذ الصفقة!</b>\nالاتجاه: {dir_text}\nانتظر (30 ثانية)... ⏳", parse_mode='HTML')
         asyncio.create_task(process_bet(context, query.from_user.id, context.user_data['coin'], context.user_data['price'], direction))
 
 if __name__ == '__main__':
