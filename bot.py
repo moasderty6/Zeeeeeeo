@@ -8,58 +8,28 @@ from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, U
 # =============================
 # ENV VARIABLES
 # =============================
-
 TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").rstrip("/")
 PORT = int(os.getenv("PORT", 8080))
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not TOKEN:
-    raise ValueError("❌ BOT_TOKEN is not set")
-
-if not WEBHOOK_URL:
-    raise ValueError("❌ WEBHOOK_URL is not set")
-
-if not DATABASE_URL:
-    raise ValueError("❌ DATABASE_URL is not set")
-
-WEBHOOK_URL = WEBHOOK_URL.rstrip("/")
+if not TOKEN or not WEBHOOK_URL or not DATABASE_URL:
+    print("❌ خطأ: تأكد من ضبط متغيرات البيئة (TOKEN, WEBHOOK_URL, DATABASE_URL)")
+    exit(1)
 
 # =============================
 # BOT INIT
 # =============================
-
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
-
-# =============================
-# DATABASE
-# =============================
-
-async def init_db(app):
-    app["db"] = await asyncpg.create_pool(DATABASE_URL)
-
-    async with app["db"].acquire() as conn:
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id BIGINT PRIMARY KEY,
-                username TEXT,
-                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-    print("✅ Database ready")
-
 
 # =============================
 # HANDLERS
 # =============================
 
 @dp.message(F.command("start"))
-async def start_handler(message: Message):
-    async with message.bot.get("db").acquire() as conn:
+async def start_handler(message: Message, db_pool: asyncpg.Pool): # استلام الـ pool مباشرة
+    async with db_pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO users (user_id, username)
             VALUES ($1, $2)
@@ -67,9 +37,9 @@ async def start_handler(message: Message):
         """, message.from_user.id, message.from_user.username)
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📢 قناة زينو ياسر محاميد الرسمية", url="https://t.me/Tgstarssavebot")],
-        [InlineKeyboardButton(text="🗣 منتدى شبكة زينو الإخبارية", url="https://t.me/Tgstarssavebot")],
-        [InlineKeyboardButton(text="📬 للتواصل مع زينو", url="https://t.me/Tgstarssavebot")]
+        [InlineKeyboardButton(text="📢 قناة زينو ياسر محاميد الرسمية", url="https://t.me/zainaldinmaham1")],
+        [InlineKeyboardButton(text="🗣 منتدى شبكة زينو الإخبارية", url="https://t.me/zedan432")],
+        [InlineKeyboardButton(text="📬 للتواصل مع زينو", url="https://t.me/Sasam132")]
     ])
 
     await message.answer(
@@ -77,55 +47,54 @@ async def start_handler(message: Message):
         reply_markup=keyboard
     )
 
-
 @dp.message(F.command("stats"))
-async def stats_handler(message: Message):
-    async with message.bot.get("db").acquire() as conn:
+async def stats_handler(message: Message, db_pool: asyncpg.Pool):
+    async with db_pool.acquire() as conn:
         count = await conn.fetchval("SELECT COUNT(*) FROM users")
-
     await message.answer(f"📊 عدد المستخدمين: {count}")
 
-
 # =============================
-# WEBHOOK
+# WEBHOOK & SERVER
 # =============================
 
 async def handle_webhook(request):
     try:
         data = await request.json()
         update = Update(**data)
-        await dp.feed_update(bot, update)
+        # تمرير الـ pool مع التحديث
+        await dp.feed_update(bot, update, db_pool=request.app["db_pool"])
         return web.Response(text="OK")
     except Exception as e:
-        print("❌ Webhook Error:", e)
+        print(f"❌ Webhook Error: {e}")
         return web.Response(status=500)
 
-
-async def homepage(request):
-    return web.Response(text="Bot is running ✅")
-
-
 async def on_startup(app):
-    await init_db(app)
+    # إنشاء اتصال قاعدة البيانات
+    app["db_pool"] = await asyncpg.create_pool(DATABASE_URL)
+    
+    # إنشاء الجدول
+    async with app["db_pool"].acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    
+    # ضبط الويب هوك وتنظيف الرسائل القديمة
+    await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(f"{WEBHOOK_URL}/webhook")
-    print("🚀 Webhook set:", f"{WEBHOOK_URL}/webhook")
-
+    print("🚀 Bot is Live and Webhook is set!")
 
 async def on_shutdown(app):
     await bot.delete_webhook()
+    await app["db_pool"].close()
     await bot.session.close()
-    await app["db"].close()
-    print("🛑 Bot stopped")
-
-
-# =============================
-# MAIN
-# =============================
 
 async def main():
     app = web.Application()
-
-    app.router.add_get("/", homepage)
+    app.router.add_get("/", lambda r: web.Response(text="Bot is running ✅"))
     app.router.add_post("/webhook", handle_webhook)
 
     app.on_startup.append(on_startup)
@@ -133,14 +102,13 @@ async def main():
 
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-
-    print(f"🌍 Server started on port {PORT}")
-
-    while True:
-        await asyncio.sleep(3600)
-
+    await web.TCPSite(runner, "0.0.0.0", PORT).start()
+    
+    # إبقاء السيرفر يعمل
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
