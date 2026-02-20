@@ -94,18 +94,25 @@ async def on_shutdown(app):
 
 async def main():
     app = web.Application()
-    app.router.add_get("/", lambda r: web.Response(text="Bot is running ✅"))
+
+    # جعل البوت يستقبل التحديثات على / وعلى /webhook لضمان عدم حدوث 404
+    app.router.add_get("/", homepage)
     app.router.add_post("/webhook", handle_webhook)
+    app.router.add_post("/", handle_webhook) # إضافة هذا السطر كاحتياط
 
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
 
     runner = web.AppRunner(app)
     await runner.setup()
-    await web.TCPSite(runner, "0.0.0.0", PORT).start()
     
-    # إبقاء السيرفر يعمل
+    # Render يفضل أحياناً استخدام PORT المعرف في النظام مباشرة
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
+    print(f"🌍 Server started on port {PORT}")
     await asyncio.Event().wait()
+
 
 if __name__ == "__main__":
     try:
