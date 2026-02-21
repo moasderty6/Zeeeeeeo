@@ -4,4 +4,3 @@ requests
 python-dotenv
 gunicorn
 psycopg2-binary
-websockets
