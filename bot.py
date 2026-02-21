@@ -1,12 +1,8 @@
-import os
+Import os
 import requests
 import logging
 import psycopg2 
 import asyncio
-import hmac
-import hashlib
-import time
-from urllib.parse import urlencode
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, 
@@ -19,27 +15,11 @@ from telegram.ext import (
 
 # --- الإعدادات ---
 TOKEN = "7751947016:AAHFArUstq0G0HqvNy1jQFZXQ2Xx5Cto39Q"
+CMC_API_KEY = "8a097472-4ae1-4e81-811d-c930269d0613"
 WEBHOOK_URL = "https://zeeeeeeo.onrender.com" 
 PORT = int(os.environ.get('PORT', 5000))
 ADMIN_ID = 6172153716 
 DATABASE_URL = "postgresql://neondb_owner:npg_yPL6dYWRZQ4o@ep-little-firefly-aifch2tu-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
-
-# --- Binance API الخاص ---
-BINANCE_API_KEY = "fdNKsTXn5A22UnCgKG4GfWj7mfPEbDLPZbKghtaarWDWvtLhQSYtMhIPfX7qKtYc"
-BINANCE_SECRET_KEY = "gPWVnDmdveW4lfuBBQG89MLAAKUVDDpV3l63PtRw104PDHVETSOvDXiNgZZnwSuO"
-
-BINANCE_PAIRS = {
-    'BTC': 'BTCUSDT',
-    'ETH': 'ETHUSDT',
-    'BNB': 'BNBUSDT',
-    'SOL': 'SOLUSDT',
-    'TON': 'TONUSDT',
-    'XRP': 'XRPUSDT',
-    'DOT': 'DOTUSDT',
-    'DOGE': 'DOGEUSDT',
-    'AVAX': 'AVAXUSDT',
-    'ADA': 'ADAUSDT'
-}
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -98,25 +78,16 @@ def update_balance(user_id, amount):
     c.close()
     conn.close()
 
-# --- جلب السعر اللحظي من Binance باستخدام API Key ---
+# --- جلب السعر اللحظي ---
 def get_crypto_price(symbol):
     try:
-        symbol = symbol.upper()
-        if symbol not in BINANCE_PAIRS:
-            print(f"⚠️ العملة {symbol} غير مدعومة في Binance.")
-            return None
-        pair = BINANCE_PAIRS[symbol]
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
-        headers = {'X-MBX-APIKEY': BINANCE_API_KEY}
-        response = requests.get(url, headers=headers, timeout=5)
+        url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
+        parameters = {'symbol': symbol.strip().upper(), 'convert': 'USD'}
+        headers = {'Accepts': 'application/json', 'X-CMC_PRO_API_KEY': CMC_API_KEY}
+        response = requests.get(url, headers=headers, params=parameters, timeout=10)
         data = response.json()
-        if 'price' in data:
-            return float(data['price'])
-        else:
-            print("Binance API returned invalid data:", data)
-            return None
-    except Exception as e:
-        print("Binance request failed:", e)
+        return data['data'][symbol.upper()]['quote']['USD']['price']
+    except:
         return None
 
 # --- معالجة الرهان (30 ثانية) ---
@@ -212,7 +183,6 @@ async def clear_all_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ خطأ أثناء المسح: {str(e)}")
 
-# --- دالة التعامل مع الرسائل ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
@@ -220,6 +190,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user: return
 
     if text == '👤 الحساب':
+        # أضفنا حرف \u200f وهو رمز مخفي يجبر النص على البقاء بجهة اليمين
         msg = (f"🚀 <b>طيار زينو محاميد: @{user[1]}</b>\n"
                f"━━━━━━━━━━━━━━\n"
                f"\u200f🆔 <b>المعرف:</b> <code>{user[0]}</code>\n"
@@ -294,7 +265,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("❌ <b>خطأ!</b> يرجى إدخال أرقام فقط.")
 
-# --- دالة التعامل مع أزرار التداول ---
 async def bet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
@@ -323,7 +293,6 @@ async def bet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"🚀 <b>تم تنفيذ الصفقة بنجاح!</b>\nالاتجاه: {dir_text}\nانتظر 30 ثانية لمعالجة النتيجة... ⏳", parse_mode='HTML')
         asyncio.create_task(process_bet(context, query.from_user.id, context.user_data['coin'], context.user_data['price'], direction))
 
-# --- تشغيل البوت ---
 if __name__ == '__main__':
     init_db()
     application = Application.builder().token(TOKEN).build()
