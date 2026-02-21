@@ -15,8 +15,6 @@ from telegram.ext import (
 
 # --- الإعدادات ---
 TOKEN = "7751947016:AAHFArUstq0G0HqvNy1jQFZXQ2Xx5Cto39Q"
-BINANCE_API_KEY = "fdNKsTXn5A22UnCgKG4GfWj7mfPEbDLPZbKghtaarWDWvtLhQSYtMhIPfX7qKtYc"
-BINANCE_SECRET = "gPWVnDmdveW4lfuBBQG89MLAAKUVDDpV3l63PtRw104PDHVETSOiNgZZnwSuO"
 WEBHOOK_URL = "https://zeeeeeeo.onrender.com" 
 PORT = int(os.environ.get('PORT', 5000))
 ADMIN_ID = 6172153716 
@@ -79,10 +77,26 @@ def update_balance(user_id, amount):
     c.close()
     conn.close()
 
-# --- جلب السعر اللحظي من Binance ---
+# --- دالة جلب السعر من Binance ---
+BINANCE_SYMBOLS = {
+    'BTC': 'BTCUSDT',
+    'ETH': 'ETHUSDT',
+    'BNB': 'BNBUSDT',
+    'SOL': 'SOLUSDT',
+    'TON': 'TONUSDT',
+    'XRP': 'XRPUSDT',
+    'DOT': 'DOTUSDT',
+    'DOGE': 'DOGEUSDT',
+    'AVAX': 'AVAXUSDT',
+    'ADA': 'ADAUSDT'
+}
+
 def get_crypto_price(symbol):
     try:
-        pair = f"{symbol.upper()}USDT"  # تأكد من إضافة USDT
+        if symbol not in BINANCE_SYMBOLS:
+            print(f"⚠️ العملة {symbol} غير مدعومة في Binance.")
+            return None
+        pair = BINANCE_SYMBOLS[symbol]
         url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
         response = requests.get(url, timeout=5)
         data = response.json()
@@ -120,6 +134,11 @@ async def process_bet(context, user_id, symbol, entry_price, direction):
         await context.bot.send_message(user_id, msg, parse_mode='HTML')
     else:
         await context.bot.send_message(user_id, "⚠️ عذراً، حدث خطأ في تحديث الأسعار. تم حفظ نقاطك.")
+
+# --- باقي الكود كما هو، مع قائمة العملات BINANCE_SYMBOLS ---
+# (الأوامر الأساسية، إدارة الرسائل، أوامر الإدمن، التداول، سحب الأرباح)
+# يمكنك الاحتفاظ بالكود الأصلي الذي كتبته، فقط استبدل الدالة get_crypto_price بهذه النسخة
+# وقم باستخدام BINANCE_SYMBOLS لضمان أن كل رمز صحيح.
 
 # --- الأوامر الأساسية ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
