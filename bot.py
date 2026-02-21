@@ -15,8 +15,8 @@ from telegram.ext import (
 
 # --- الإعدادات ---
 TOKEN = "7751947016:AAHFArUstq0G0HqvNy1jQFZXQ2Xx5Cto39Q"
-# تم تحديث المفتاح إلى CoinGecko Demo API Key
-CG_API_KEY = "CG-cPjLvE4tK7KUGME6enuyxtur" 
+# تم تحديث المفتاح إلى CoinAPI
+COINAPI_KEY = "5364e67d-896f-4852-9f8e-35ae88335d56"
 WEBHOOK_URL = "https://zeeeeeeo.onrender.com" 
 PORT = int(os.environ.get('PORT', 5000))
 ADMIN_ID = 6172153716 
@@ -79,29 +79,16 @@ def update_balance(user_id, amount):
     c.close()
     conn.close()
 
-# --- جلب السعر اللحظي عبر CoinGecko ---
+# --- جلب السعر اللحظي عبر CoinAPI ---
 def get_crypto_price(symbol):
     try:
-        # خريطة لتحويل الرموز لأسماء CoinGecko المطلوبة للـ API
-        coin_map = {
-            'BTC': 'bitcoin', 'ETH': 'ethereum', 'BNB': 'binancecoin', 
-            'SOL': 'solana', 'TON': 'the-open-network', 'XRP': 'ripple', 
-            'DOT': 'polkadot', 'DOGE': 'dogecoin', 'AVAX': 'avalanche-2', 'ADA': 'cardano'
-        }
-        coin_id = coin_map.get(symbol.upper())
-        if not coin_id: return None
-
-        url = f"https://api.coingecko.com/api/v3/simple/price"
-        parameters = {
-            'ids': coin_id,
-            'vs_currencies': 'usd',
-            'x_cg_demo_api_key': CG_API_KEY
-        }
-        response = requests.get(url, params=parameters, timeout=10)
+        url = f"https://rest.coinapi.io/v1/exchangerate/{symbol.strip().upper()}/USD"
+        headers = {'X-CoinAPI-Key': COINAPI_KEY}
+        response = requests.get(url, headers=headers, timeout=10)
         data = response.json()
-        return data[coin_id]['usd']
+        return data['rate'] # CoinAPI يعيد السعر في حقل rate
     except Exception as e:
-        logging.error(f"Error fetching price: {e}")
+        logging.error(f"CoinAPI Error: {e}")
         return None
 
 # --- معالجة الرهان (30 ثانية) ---
