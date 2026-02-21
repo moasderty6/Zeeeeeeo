@@ -82,13 +82,17 @@ def update_balance(user_id, amount):
 # --- جلب السعر اللحظي من Binance ---
 def get_crypto_price(symbol):
     try:
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol.upper()}USDT"
-        headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
-        response = requests.get(url, headers=headers, timeout=5)
+        pair = f"{symbol.upper()}USDT"  # تأكد من إضافة USDT
+        url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
+        response = requests.get(url, timeout=5)
         data = response.json()
-        return float(data['price'])
+        if 'price' in data:
+            return float(data['price'])
+        else:
+            print("Binance API error:", data)
+            return None
     except Exception as e:
-        print("Binance price error:", e)
+        print("Binance request failed:", e)
         return None
 
 # --- معالجة الرهان (30 ثانية) ---
