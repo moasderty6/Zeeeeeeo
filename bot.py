@@ -15,7 +15,7 @@ from telegram.ext import (
 
 # --- الإعدادات ---
 TOKEN = "7751947016:AAHFArUstq0G0HqvNy1jQFZXQ2Xx5Cto39Q"
-# إعدادات Binance الجديدة
+# مفاتيح Binance الخاصة بك
 BINANCE_API_KEY = "fdNKsTXn5A22UnCgKG4GfWj7mfPEbDLPZbKghtaarWDWvtLhQSYtMhIPfX7qKtYc"
 BINANCE_SECRET_KEY = "gPWVnDmdveW4lfuBBQG89MLAAKUVDDpV3l63PtRw104PDHVETSOvDXiNgZZnwSuO"
 
@@ -81,26 +81,31 @@ def update_balance(user_id, amount):
     c.close()
     conn.close()
 
-# --- جلب السعر اللحظي عبر Binance ---
+# --- جلب السعر اللحظي عبر Binance (نسخة مطورة) ---
 def get_crypto_price(symbol):
     try:
         sym = symbol.strip().upper()
-        # تحويل الرمز ليتناسب مع أزواج التداول في بايننس (مثلاً BTC يصبح BTCUSDT)
-        if not sym.endswith("USDT"):
-            # استثناء خاص لعملة TON لأنها تسمى TONUSDT في بايننس
-            query_symbol = f"{sym}USDT"
-        else:
-            query_symbol = sym
-
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={query_symbol}"
-        response = requests.get(url, timeout=10)
-        data = response.json()
+        # تحويل الرموز مثل BTC إلى BTCUSDT
+        query_symbol = f"{sym}USDT"
         
-        if 'price' in data:
+        url = "https://api.binance.com/api/v3/ticker/price"
+        params = {'symbol': query_symbol}
+        
+        # إضافة المفاتيح والـ User-Agent في الهيدرز لضمان القبول
+        headers = {
+            'X-MBX-APIKEY': BINANCE_API_KEY,
+            'User-Agent': 'Mozilla/5.0'
+        }
+        
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
             return float(data['price'])
         else:
-            logging.error(f"Binance API Error for {query_symbol}: {data}")
+            logging.error(f"Binance Error: Status {response.status_code}, Response: {response.text}")
             return None
+            
     except Exception as e:
         logging.error(f"Error fetching price from Binance: {e}")
         return None
