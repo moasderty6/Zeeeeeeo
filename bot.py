@@ -81,34 +81,34 @@ def update_balance(user_id, amount):
     c.close()
     conn.close()
 
-# --- جلب السعر اللحظي عبر Binance (نسخة مطورة) ---
+# --- جلب السعر اللحظي (نظام الحماية المزدوج) ---
 def get_crypto_price(symbol):
+    sym = symbol.strip().upper()
     try:
-        sym = symbol.strip().upper()
-        # تحويل الرموز مثل BTC إلى BTCUSDT
+        # المحاولة الأولى: Binance API الرسمي
         query_symbol = f"{sym}USDT"
-        
-        url = "https://api.binance.com/api/v3/ticker/price"
-        params = {'symbol': query_symbol}
-        
-        # إضافة المفاتيح والـ User-Agent في الهيدرز لضمان القبول
+        url = f"https://api.binance.com/api/v3/ticker/price?symbol={query_symbol}"
         headers = {
             'X-MBX-APIKEY': BINANCE_API_KEY,
             'User-Agent': 'Mozilla/5.0'
         }
-        
-        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=8)
         
         if response.status_code == 200:
-            data = response.json()
-            return float(data['price'])
-        else:
-            logging.error(f"Binance Error: Status {response.status_code}, Response: {response.text}")
-            return None
+            return float(response.json()['price'])
+        
+        # المحاولة الثانية (احتياطية): Coinbase API (مفتوح ولا يحتاج مفاتيح)
+        logging.warning(f"Binance failed for {sym}, trying Coinbase backup...")
+        backup_url = f"https://api.coinbase.com/v2/prices/{sym}-USD/spot"
+        backup_res = requests.get(backup_url, timeout=8)
+        
+        if backup_res.status_code == 200:
+            return float(backup_res.json()['data']['amount'])
             
     except Exception as e:
-        logging.error(f"Error fetching price from Binance: {e}")
-        return None
+        logging.error(f"Error fetching price for {sym}: {e}")
+    
+    return None
 
 # --- معالجة الرهان (30 ثانية) ---
 async def process_bet(context, user_id, symbol, entry_price, direction):
