@@ -78,25 +78,29 @@ def update_balance(user_id, amount):
     conn.close()
 
 # --- دالة جلب السعر من Binance ---
-BINANCE_SYMBOLS = {
-    'BTC': 'BTCUSDT',
-    'ETH': 'ETHUSDT',
-    'BNB': 'BNBUSDT',
-    'SOL': 'SOLUSDT',
-    'TON': 'TONUSDT',
-    'XRP': 'XRPUSDT',
-    'DOT': 'DOTUSDT',
-    'DOGE': 'DOGEUSDT',
-    'AVAX': 'AVAXUSDT',
-    'ADA': 'ADAUSDT'
-}
+BINANCE_PAIRS = {}  # cache لتخزين الأزواج
+
+def refresh_binance_pairs():
+    """تحديث جميع أزواج العملات المدعومة من Binance USDT"""
+    global BINANCE_PAIRS
+    try:
+        url = "https://api.binance.com/api/v3/ticker/price"
+        resp = requests.get(url, timeout=5).json()
+        BINANCE_PAIRS = {item['symbol'][:-4]: item['symbol'] for item in resp if item['symbol'].endswith('USDT')}
+        # مثال: {'BTC':'BTCUSDT', 'ETH':'ETHUSDT', 'TON':'TONUSDT', ...}
+    except Exception as e:
+        print("Failed to refresh Binance pairs:", e)
+        BINANCE_PAIRS = {}
 
 def get_crypto_price(symbol):
     try:
-        if symbol not in BINANCE_SYMBOLS:
-            print(f"⚠️ العملة {symbol} غير مدعومة في Binance.")
+        if not BINANCE_PAIRS:
+            refresh_binance_pairs()
+        symbol = symbol.upper()
+        if symbol not in BINANCE_PAIRS:
+            print(f"⚠️ {symbol} غير موجودة في Binance.")
             return None
-        pair = BINANCE_SYMBOLS[symbol]
+        pair = BINANCE_PAIRS[symbol]
         url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
         response = requests.get(url, timeout=5)
         data = response.json()
