@@ -15,10 +15,8 @@ from telegram.ext import (
 
 # --- الإعدادات ---
 TOKEN = "7751947016:AAHFArUstq0G0HqvNy1jQFZXQ2Xx5Cto39Q"
-# مفاتيح Binance الخاصة بك
 BINANCE_API_KEY = "fdNKsTXn5A22UnCgKG4GfWj7mfPEbDLPZbKghtaarWDWvtLhQSYtMhIPfX7qKtYc"
-BINANCE_SECRET_KEY = "gPWVnDmdveW4lfuBBQG89MLAAKUVDDpV3l63PtRw104PDHVETSOvDXiNgZZnwSuO"
-
+BINANCE_SECRET = "gPWVnDmdveW4lfuBBQG89MLAAKUVDDpV3l63PtRw104PDHVETSOiNgZZnwSuO"
 WEBHOOK_URL = "https://zeeeeeeo.onrender.com" 
 PORT = int(os.environ.get('PORT', 5000))
 ADMIN_ID = 6172153716 
@@ -81,34 +79,17 @@ def update_balance(user_id, amount):
     c.close()
     conn.close()
 
-# --- جلب السعر اللحظي (نظام الحماية المزدوج) ---
+# --- جلب السعر اللحظي من Binance ---
 def get_crypto_price(symbol):
-    sym = symbol.strip().upper()
     try:
-        # المحاولة الأولى: Binance API الرسمي
-        query_symbol = f"{sym}USDT"
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={query_symbol}"
-        headers = {
-            'X-MBX-APIKEY': BINANCE_API_KEY,
-            'User-Agent': 'Mozilla/5.0'
-        }
-        response = requests.get(url, headers=headers, timeout=8)
-        
-        if response.status_code == 200:
-            return float(response.json()['price'])
-        
-        # المحاولة الثانية (احتياطية): Coinbase API (مفتوح ولا يحتاج مفاتيح)
-        logging.warning(f"Binance failed for {sym}, trying Coinbase backup...")
-        backup_url = f"https://api.coinbase.com/v2/prices/{sym}-USD/spot"
-        backup_res = requests.get(backup_url, timeout=8)
-        
-        if backup_res.status_code == 200:
-            return float(backup_res.json()['data']['amount'])
-            
+        url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol.upper()}USDT"
+        headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+        response = requests.get(url, headers=headers, timeout=5)
+        data = response.json()
+        return float(data['price'])
     except Exception as e:
-        logging.error(f"Error fetching price for {sym}: {e}")
-    
-    return None
+        print("Binance price error:", e)
+        return None
 
 # --- معالجة الرهان (30 ثانية) ---
 async def process_bet(context, user_id, symbol, entry_price, direction):
