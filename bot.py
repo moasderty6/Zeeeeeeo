@@ -15,8 +15,10 @@ from telegram.ext import (
 
 # --- الإعدادات ---
 TOKEN = "7751947016:AAHFArUstq0G0HqvNy1jQFZXQ2Xx5Cto39Q"
-# تم تحديث المفتاح إلى CoinAPI
-COINAPI_KEY = "5364e67d-896f-4852-9f8e-35ae88335d56"
+# إعدادات Binance الجديدة
+BINANCE_API_KEY = "fdNKsTXn5A22UnCgKG4GfWj7mfPEbDLPZbKghtaarWDWvtLhQSYtMhIPfX7qKtYc"
+BINANCE_SECRET_KEY = "gPWVnDmdveW4lfuBBQG89MLAAKUVDDpV3l63PtRw104PDHVETSOvDXiNgZZnwSuO"
+
 WEBHOOK_URL = "https://zeeeeeeo.onrender.com" 
 PORT = int(os.environ.get('PORT', 5000))
 ADMIN_ID = 6172153716 
@@ -79,16 +81,28 @@ def update_balance(user_id, amount):
     c.close()
     conn.close()
 
-# --- جلب السعر اللحظي عبر CoinAPI ---
+# --- جلب السعر اللحظي عبر Binance ---
 def get_crypto_price(symbol):
     try:
-        url = f"https://rest.coinapi.io/v1/exchangerate/{symbol.strip().upper()}/USD"
-        headers = {'X-CoinAPI-Key': COINAPI_KEY}
-        response = requests.get(url, headers=headers, timeout=10)
+        sym = symbol.strip().upper()
+        # تحويل الرمز ليتناسب مع أزواج التداول في بايننس (مثلاً BTC يصبح BTCUSDT)
+        if not sym.endswith("USDT"):
+            # استثناء خاص لعملة TON لأنها تسمى TONUSDT في بايننس
+            query_symbol = f"{sym}USDT"
+        else:
+            query_symbol = sym
+
+        url = f"https://api.binance.com/api/v3/ticker/price?symbol={query_symbol}"
+        response = requests.get(url, timeout=10)
         data = response.json()
-        return data['rate'] # CoinAPI يعيد السعر في حقل rate
+        
+        if 'price' in data:
+            return float(data['price'])
+        else:
+            logging.error(f"Binance API Error for {query_symbol}: {data}")
+            return None
     except Exception as e:
-        logging.error(f"CoinAPI Error: {e}")
+        logging.error(f"Error fetching price from Binance: {e}")
         return None
 
 # --- معالجة الرهان (30 ثانية) ---
