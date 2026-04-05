@@ -16,6 +16,8 @@ from telegram.ext import (
 # --- الإعدادات ---
 TOKEN = "7751947016:AAHFArUstq0G0HqvNy1jQFZXQ2Xx5Cto39Q"
 CMC_API_KEY = "8a097472-4ae1-4e81-811d-c930269d0613"
+GATE_API_KEY = "a3f6a57b42f6106011e6890049e57b2e"
+GATE_API_SECRET = "1ac18e0a690ce782f6854137908a6b16eb910cf02f5b95fa3c43b670758f79bc"
 WEBHOOK_URL = "https://zeeeeeeo.onrender.com" 
 PORT = int(os.environ.get('PORT', 5000))
 ADMIN_ID = 6172153716 
@@ -79,16 +81,27 @@ def update_balance(user_id, amount):
     conn.close()
 
 # --- جلب السعر اللحظي ---
+# --- جلب السعر اللحظي من فيوتشر Gate.io ---
 def get_crypto_price(symbol):
     try:
-        url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
-        parameters = {'symbol': symbol.strip().upper(), 'convert': 'USD'}
-        headers = {'Accepts': 'application/json', 'X-CMC_PRO_API_KEY': CMC_API_KEY}
-        response = requests.get(url, headers=headers, params=parameters, timeout=10)
+        # عقود الفيوتشر في Gate.io تستخدم هذه الصيغة
+        contract = f"{symbol.strip().upper()}_USDT"
+        # تم تغيير الرابط ليؤشر على قسم الفيوتشر (العقود المقومة بـ USDT)
+        url = "https://api.gateio.ws/api/v4/futures/usdt/tickers"
+        # المتغير هنا اسمه contract بدلاً من currency_pair
+        parameters = {'contract': contract}
+        
+        response = requests.get(url, params=parameters, timeout=10)
         data = response.json()
-        return data['data'][symbol.upper()]['quote']['USD']['price']
-    except:
+        
+        if data and isinstance(data, list) and len(data) > 0:
+            # السعر اللحظي الأخير للعقد
+            return float(data[0]['last'])
         return None
+    except Exception as e:
+        logging.error(f"Error fetching futures price from Gate.io for {symbol}: {e}")
+        return None
+
 
 # --- معالجة الرهان (30 ثانية) ---
 async def process_bet(context, user_id, symbol, entry_price, direction):
